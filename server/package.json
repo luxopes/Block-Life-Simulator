@@ -1,0 +1,10 @@
+{
+  "name": "block-life-server",
+  "version": "1.0.0",
+  "description": "Multiplayer server pro Block Life Simulator (max 4 hráči, admin, ukládání světa)",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" },
+  "dependencies": { "ws": "^8.18.0" },
+  "license": "MIT"
+}
