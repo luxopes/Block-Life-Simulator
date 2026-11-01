@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<title>Block Life Simulator</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+  #splash{position:fixed;inset:0;z-index:99999;background:#06070b;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;transition:opacity .7s;cursor:pointer}
+  #splash.out{opacity:0;pointer-events:none}
+  #splash .lx{font:900 clamp(26px,7vw,64px) "Trebuchet MS",Verdana,sans-serif;letter-spacing:.28em;color:#e9edf5;text-indent:.28em;opacity:0;animation:spIn 1s .25s forwards;text-shadow:0 0 24px rgba(120,170,255,.55)}
+  #splash .lx b{color:#f5c542}
+  #splash .gd{font:600 clamp(11px,2.4vw,18px) "Trebuchet MS",Verdana,sans-serif;letter-spacing:.5em;text-indent:.5em;color:#8f9bb3;opacity:0;animation:spIn 1s .75s forwards}
+  #splash .bar{width:min(220px,50vw);height:3px;background:#1a1e2b;overflow:hidden;opacity:0;animation:spIn .5s .9s forwards}
+  #splash .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#4f7cff,#f5c542);animation:spBar 1.7s 1s forwards}
+  @keyframes spIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  @keyframes spBar{to{width:100%}}
+  *{box-sizing:border-box;user-select:none;-webkit-user-select:none}
+  html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:"Trebuchet MS",Verdana,sans-serif;color:#fff}
+  canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
+  .px{image-rendering:pixelated}
+  #hud{position:fixed;inset:0;pointer-events:none;display:none}
+  #cross{position:absolute;left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;opacity:.85;mix-blend-mode:difference}
+  #cross:before,#cross:after{content:"";position:absolute;background:#fff}
+  #cross:before{left:10px;top:0;width:2px;height:22px}
+  #cross:after{top:10px;left:0;height:2px;width:22px}
+  #bottom{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px}
+  #stats{display:flex;justify-content:space-between;width:100%;align-items:flex-end}
+  #food{display:flex;gap:2px;height:20px}
+  #food img,#food canvas{width:18px;height:18px;image-rendering:pixelated}
+  #hearts{display:flex;gap:2px;align-self:flex-start;height:20px}
+  .heart{width:18px;height:18px;image-rendering:pixelated}
+  #hotbar{display:flex;gap:3px;padding:4px;background:rgba(0,0,0,.45);border:2px solid #111;border-radius:3px}
+  .slot{width:52px;height:52px;background:rgba(80,80,80,.55);border:2px solid #555;position:relative;display:flex;align-items:center;justify-content:center;border-radius:2px}
+  .slot.sel{border-color:#fff;background:rgba(160,160,160,.55);box-shadow:0 0 0 2px #000}
+  .slot img,.slot canvas{width:40px;height:40px;image-rendering:pixelated;pointer-events:none}
+  .slot .cnt{position:absolute;right:3px;bottom:0;font-weight:bold;font-size:15px;text-shadow:1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000;pointer-events:none}
+  .slot .key{position:absolute;left:3px;top:0;font-size:10px;opacity:.6}
+  #toast{position:absolute;left:50%;top:14%;transform:translateX(-50%);font-size:20px;font-weight:bold;text-shadow:2px 2px 0 #000;text-align:center;opacity:0;transition:opacity .4s;max-width:80%;line-height:1.3}
+  #toast.on{opacity:1}
+  #debug{position:absolute;left:8px;top:8px;font:12px/1.35 monospace;background:rgba(0,0,0,.45);padding:5px 7px;display:none;white-space:pre}
+  #raid{position:absolute;left:50%;top:44px;transform:translateX(-50%);width:320px;text-align:center;font-size:14px;font-weight:bold;text-shadow:1px 1px 0 #000;display:none}
+  #raid .rb{height:8px;background:rgba(0,0,0,.6);border:1px solid #000;margin-top:3px}
+  #raid .rb i{display:block;height:100%;background:#c02828;width:100%}
+  #info{position:absolute;right:10px;top:8px;font-size:14px;text-shadow:1px 1px 0 #000;text-align:right}
+  #tgt{position:absolute;left:50%;top:58%;transform:translateX(-50%);font-size:15px;font-weight:bold;text-shadow:2px 2px 0 #000;white-space:nowrap}
+  #mine{position:absolute;left:50%;top:56%;width:90px;height:6px;margin-left:-45px;background:rgba(0,0,0,.5);display:none;border:1px solid #000}
+  #mine i{display:block;height:100%;width:0;background:#e6e6e6}
+  #flash{position:absolute;inset:0;background:radial-gradient(transparent 40%,rgba(200,0,0,.7));opacity:0;transition:opacity .3s}
+  #water{position:absolute;inset:0;background:rgba(30,80,200,.35);display:none}
+  #lavaov{position:absolute;inset:0;background:rgba(255,90,0,.55);display:none}
+  #dark{position:absolute;inset:0;background:#000;opacity:0;transition:opacity 1.5s}
+  .screen{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;z-index:10}
+  #menu{display:flex;background:linear-gradient(#3f8fff,#9fd2ff 38%,#d6eeff 54%,#6fb04a 54%,#4f8a35);text-align:center;overflow:hidden;overflow-y:auto;justify-content:flex-start;padding:4vh 12px 24px}
+  #menu>*{position:relative;z-index:2;flex:none}
+  #sky{position:absolute;inset:0;z-index:0!important;pointer-events:none;overflow:hidden}
+  #sky .cloud{position:absolute;width:128px;height:30px;background:#fff;opacity:.92;animation:drift linear infinite}
+  #sky .cloud:before{content:"";position:absolute;left:30px;top:-24px;width:60px;height:24px;background:#fff}
+  #sky .cloud:after{content:"";position:absolute;left:78px;top:-12px;width:36px;height:12px;background:#fff}
+  @keyframes drift{from{transform:translateX(-240px)}to{transform:translateX(calc(100vw + 240px))}}
+  #sky svg{position:absolute;left:0;bottom:0;width:100%;height:46%}
+  #sky .pearl{position:absolute;border-radius:50%;background:radial-gradient(circle at 32% 28%,#fff 0,#fff7ff 16%,#eadcf7 46%,#b7a3d8 100%);box-shadow:inset -3px -4px 6px rgba(110,80,160,.5),0 0 16px rgba(255,255,255,.75);animation:bob var(--d) ease-in-out infinite;animation-delay:var(--dl)}
+  @keyframes bob{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-24px) scale(1.06)}}
+  .logo{margin-top:1vh}
+  #menu h1{font-size:min(54px,7.4vw);margin:0 0 2px;letter-spacing:2px;line-height:1.05;color:#fff;filter:drop-shadow(4px 4px 0 #3a2d55) drop-shadow(0 0 18px rgba(255,255,255,.5))}
+  #menu h1 span{display:inline-block;white-space:pre;background:linear-gradient(#ffffff 20%,#e4d4fb 70%,#c3a9ee);-webkit-background-clip:text;background-clip:text;color:transparent;animation:wave 2.6s ease-in-out infinite}
+  @keyframes wave{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+  #menu p.sub{margin:0 0 16px;font-size:17px;text-shadow:2px 2px 0 #333}
+  .panel{background:rgba(24,20,40,.62);backdrop-filter:blur(4px);padding:16px 20px;border:3px solid #221a38;border-radius:8px;display:flex;flex-direction:column;gap:10px;width:min(560px,94vw);text-align:left}
+  .panel h2{margin:0;font-size:22px;text-shadow:2px 2px 0 #000}
+  .ph{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  #wlist{display:flex;flex-direction:column;gap:7px;max-height:38vh;overflow-y:auto;padding-right:4px}
+  .world{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.1);border:2px solid #3b3158;border-radius:6px;padding:7px 9px}
+  .world:hover{background:rgba(255,255,255,.17);border-color:#8c7bd0}
+  .world .ico{width:34px;height:34px;flex:none;border-radius:50%;background:radial-gradient(circle at 32% 28%,#fff,#eadcf7 50%,#a98fd6);box-shadow:inset -2px -3px 5px rgba(110,80,160,.5)}
+  .world.cre .ico{background:radial-gradient(circle at 32% 28%,#fff,#ffe9a8 50%,#e0a530)}
+  .world .inf{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .world .nm{font-weight:bold;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .world .mt{font-size:12px;opacity:.75}
+  .world .nm input{width:100%;font-size:16px}
+  .world .acts{display:flex;gap:5px;flex:none}
+  .world button.b.sm{padding:5px 9px}
+  .world button.b.del.sure{background:#b02a2a}
+  .empty{padding:18px 6px;text-align:center;opacity:.8;font-size:15px}
+  .seg{display:flex;gap:6px}.seg button.b{flex:1;font-size:16px}
+  .seg button.b.on{background:#7a5cd6;border-top-color:#c9b8ff;border-left-color:#c9b8ff}
+  .row{display:flex;gap:8px}.row .b{flex:1}
+  #modeDesc{margin:0;font-size:13px;opacity:.8;min-height:34px}
+  details#keys summary{cursor:pointer;font-size:13px;opacity:.85}
+  button.b{font:bold 18px "Trebuchet MS",sans-serif;padding:10px 18px;color:#fff;background:#6d6d6d;border:3px solid #222;border-bottom-color:#111;border-right-color:#111;border-top-color:#aaa;border-left-color:#aaa;cursor:pointer;text-shadow:2px 2px 0 #333}
+  button.b:hover{background:#7d8fcf}
+  button.b:disabled{opacity:.4;cursor:default}
+  button.b.sm{font-size:13px;padding:4px 10px}
+  label{font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+  input[type=text]{user-select:text;-webkit-user-select:text;font:15px sans-serif;padding:5px;width:230px;background:#222;color:#fff;border:2px solid #555}
+  select{font:15px sans-serif;padding:4px;background:#222;color:#fff;border:2px solid #555}
+  #keys{font-size:12px;line-height:1.5;text-align:left;margin-top:2px}
+  #pause p#pWorld{margin:-6px 0 14px;font-size:18px;opacity:.85;text-shadow:2px 2px 0 #000}
+  #pause,#death{background:rgba(0,0,0,.55);text-align:center}
+  #death{background:rgba(120,0,0,.6)}
+  #pause h2,#death h2{font-size:42px;margin:0 0 14px;text-shadow:3px 3px 0 #000}
+  #inv,#trade{background:rgba(0,0,0,.6)}
+  .win{max-width:98vw;background:#c6c6c6;border:4px solid #222;border-radius:4px;padding:12px;color:#222;display:flex;gap:16px;max-height:92vh;overflow:auto}
+  .win h3{margin:0 0 6px;font-size:15px;color:#333}
+  .grid{display:grid;grid-template-columns:repeat(9,52px);gap:3px}
+  .grid .slot{background:#8b8b8b;border:2px solid #555;cursor:pointer}
+  .grid .slot:hover{background:#a8a8c8;border-color:#fff}
+  #palette{display:grid;grid-template-columns:repeat(8,52px);gap:3px;max-height:70vh;overflow:auto}
+  #palette .slot{background:#8b8b8b;cursor:pointer}
+  #palette .slot:hover{background:#a8a8c8;border-color:#fff}
+  .recipe{display:flex;align-items:center;gap:8px;background:#9a9a9a;border:2px solid #555;padding:4px 6px;margin-bottom:4px;font-size:13px;color:#111}
+  .recipe img,.recipe canvas{width:30px;height:30px;image-rendering:pixelated}
+  .recipe .need{flex:1;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .recipe .need span{display:flex;align-items:center;gap:2px;font-size:12px}
+  .recipe .need img,.recipe .need canvas{width:20px;height:20px}
+  .recipe.no{opacity:.5}
+  #craft{width:330px;max-height:62vh;overflow:auto}
+  #held{position:fixed;width:40px;height:40px;pointer-events:none;z-index:50;display:none}
+  #held img,#held canvas{width:40px;height:40px;image-rendering:pixelated}
+  #held .cnt{position:absolute;right:0;bottom:0;font-weight:bold;font-size:15px;text-shadow:1px 1px 0 #000}
+  .offer{display:flex;align-items:center;gap:10px;background:#9a9a9a;border:2px solid #555;padding:8px;margin-bottom:6px;color:#111;font-size:15px}
+  .offer img,.offer canvas{width:32px;height:32px;image-rendering:pixelated}
+  #loading{position:fixed;inset:0;background:#222;display:none;align-items:center;justify-content:center;flex-direction:column;z-index:20;font-size:22px}
+  #loading .bar{width:300px;height:10px;background:#444;margin-top:12px}
+  #loading .bar i{display:block;height:100%;width:0;background:#6fd05a}
+  /* ---- dotykové ovládání ---- */
+  #touch{position:fixed;inset:0;z-index:5;display:none;touch-action:none;-webkit-touch-callout:none}
+  #tzL,#tzR{position:absolute;top:0;bottom:0;touch-action:none}
+  #tzL{left:0;width:45%}#tzR{right:0;width:55%}
+  #stick{position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;border:3px solid rgba(255,255,255,.55);background:rgba(255,255,255,.12);display:none;pointer-events:none}
+  #knob{position:absolute;left:50%;top:50%;width:54px;height:54px;border-radius:50%;background:rgba(255,255,255,.6);transform:translate(-50%,-50%)}
+  .tb{position:absolute;display:flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(30,26,50,.55);border:3px solid rgba(255,255,255,.6);color:#fff;font-size:26px;touch-action:none;user-select:none;z-index:2}
+  .tb:active{background:rgba(122,92,214,.8)}
+  #tJump{right:18px;bottom:96px;width:74px;height:74px}
+  #tUse{right:104px;bottom:104px;width:62px;height:62px}
+  #tMine{right:18px;bottom:182px;width:62px;height:62px}
+  #tSneak{left:18px;bottom:96px;width:54px;height:54px;font-size:22px}
+  #chatLog{max-height:42vh;overflow:hidden;justify-content:flex-end;position:fixed;left:10px;bottom:92px;width:min(460px,60vw);display:none;flex-direction:column;gap:2px;pointer-events:none;font-size:14px;z-index:6}
+  #chatLog div{background:rgba(0,0,0,.42);padding:2px 7px;text-shadow:1px 1px 0 #000;word-break:break-word;transition:opacity .6s}
+  #chatLog div.old{display:none}#chatLog.open div.old{display:block}
+  #chatLog .sys{color:#ffe07a}#chatLog b.adm{color:#ff9a3c}
+  #chatIn{position:fixed;left:10px;bottom:62px;width:min(460px,60vw);display:none;z-index:7;background:rgba(0,0,0,.65);color:#fff;border:1px solid #888;padding:5px 8px;font:inherit;font-size:15px;outline:none}
+  #plist{position:fixed;left:50%;top:60px;transform:translateX(-50%);min-width:240px;background:rgba(0,0,0,.6);border:2px solid #222;padding:8px 14px;display:none;z-index:6;font-size:15px;text-shadow:1px 1px 0 #000}
+  #plist h4{margin:0 0 6px;font-size:13px;opacity:.7;font-weight:normal}
+  #plist div{display:flex;justify-content:space-between;gap:20px;padding:1px 0}
+  #netBadge{position:fixed;right:10px;top:34px;font-size:12px;opacity:.75;display:none;z-index:5;text-shadow:1px 1px 0 #000}
+  body.touch #netBadge{top:84px}
+  #tChat{display:none}
+  body.touch.mp #tChat{display:flex;right:8px;top:8px;width:46px;height:46px;font-size:22px}
+  .note{font-size:13px;opacity:.85;min-height:1.2em;margin:4px 0}
+  #tPause,#tInv,#tFly{top:8px;width:46px;height:46px;font-size:22px}
+  #tPause{left:8px}#tInv{left:62px}#tFly{left:116px}
+  body.touch #hud{z-index:6}
+  body.touch #hotbar{pointer-events:auto}
+  body.touch .slot{width:min(52px,9.6vw);height:min(52px,9.6vw)}
+  body.touch .slot img,body.touch .slot canvas{width:75%;height:75%}
+  body.touch #keys{display:none}
+  body.touch #info{top:62px;font-size:12px}
+  @media (max-width:760px){
+    .win{flex-direction:column;padding:8px;gap:8px;width:98vw}
+    .grid{grid-template-columns:repeat(9,min(52px,10.2vw))}
+    .grid .slot{width:min(52px,10.2vw);height:min(52px,10.2vw)}
+    #craft{width:auto;max-height:30vh}
+    #palette{grid-template-columns:repeat(8,min(52px,11vw))}
+    #menu h1{font-size:7vw}#menu p.sub{font-size:13px}
+    .world .mt{font-size:11px}
+  }
+  body.touch .win{flex-direction:column;padding:8px;gap:8px}
+  body.touch .grid{grid-template-columns:repeat(9,min(46px,10.2vw))}
+  body.touch .grid .slot{width:min(46px,10.2vw);height:min(46px,10.2vw)}
+  body.touch #craft{width:auto;max-height:30vh}
+  body.touch #palette{grid-template-columns:repeat(8,min(46px,11vw));max-height:40vh}
+  @media (max-height:480px){#menu{padding-top:10px}#menu h1{font-size:min(34px,6.5vw);margin:0}#menu p.sub{margin-bottom:6px}.logo{margin-top:0}#wlist{max-height:28vh}}
+  #invClose{position:absolute;top:8px;right:8px;z-index:3}
+
+.musicBtn.off{opacity:.7}
+
+  #menu{transition:background .8s}
+  #menu.bg3d{background:linear-gradient(rgba(10,14,30,.25),rgba(10,14,30,.05) 35%,rgba(10,14,30,.45))}
+  #menu.bg3d #sky{opacity:0;transition:opacity .8s}
+  #menu.bg3d .panel{background:rgba(18,20,34,.62);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-color:rgba(255,255,255,.18)}
+  #menu.bg3d h1{filter:drop-shadow(0 3px 0 rgba(30,20,50,.65)) drop-shadow(0 0 24px rgba(255,200,140,.55))}
+  #menu.bg3d p.sub{text-shadow:0 2px 6px #000}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<div id="splash"><div class="lx"><b>LUX</b> GAME</div><div class="gd">DEVELOPMENT</div><div class="bar"><i></i></div></div>
+<script>(function(){var s=document.getElementById('splash');if(!s)return;var done=false;function end(){if(done)return;done=true;s.classList.add('out');setTimeout(function(){s.remove()},800)}s.addEventListener('click',end);s.addEventListener('touchstart',end);var t0=Date.now();function arm(){setTimeout(end,Math.max(300,2800-(Date.now()-t0)))}if(document.readyState==='complete')arm();else window.addEventListener('load',function(){t0=Date.now();arm()});setTimeout(end,12000)})();</script>
+<div id="hud">
+  <div id="cross"></div>
+  <div id="mine"><i></i></div>
+  <div id="tgt"></div>
+  <div id="info"></div>
+  <div id="debug"></div>
+  <div id="raid"><span></span><div class="rb"><i></i></div></div>
+  <div id="toast"></div>
+  <div id="water"></div><div id="lavaov"></div>
+  <div id="flash"></div>
+  <div id="bottom"><div id="stats"><div id="hearts"></div><div id="food"></div></div><div id="hotbar"></div></div>
+</div>
+
+<div id="menu" class="screen">
+  <div id="sky"></div>
+  <div class="logo">
+    <h1 id="logo">BLOCK LIFE SIMULATOR</h1>
+    <p class="sub">Nekonečný svět · zvířata · vesnice · obchodníci · golemové</p>
+  </div>
+  <div class="panel" id="pWorlds">
+    <div class="ph"><h2>Tvoje světy</h2><span><button class="b sm" id="bOnline">🌐 Online hra</button> <button class="b sm" id="bNew">＋ Nový svět</button></span></div>
+    <div id="wlist"></div>
+    <label>Dohled
+      <select id="dist"><option value="5">Nízký (5)</option><option value="7" selected>Střední (7)</option><option value="9">Vysoký (9)</option><option value="12">Extrémní (12)</option></select>
+    </label>
+    <label>Hudba <button class="b sm musicBtn" type="button" style="margin-left:8px">♪ Hudba</button></label>
+    <label>Grafika
+      <select id="gfx"><option value="2" selected>Realistická (stíny)</option><option value="1">Filmový obraz</option><option value="0">Rychlá</option></select>
+    </label>
+    <details id="keys"><summary>Ovládání</summary>
+      <b>WASD</b> pohyb · <b>Mezerník</b> skok · <b>Shift</b> sprint · <b>Myš</b> rozhlížení<br>
+      <b>Levé tl.</b> těžit / útočit · <b>Pravé tl.</b> položit / jíst / dveře / truhla / postel / obchod<br>
+      <b>1-9 / kolečko</b> výběr předmětu · <b>E</b> inventář a výroba<br>
+      <b>F</b> létání (kreativní, nebo 2× mezerník) · <b>F3</b> ladění · <b>M</b> zvuk · <b>N</b> hudba
+    </details>
+  </div>
+  <div class="panel" id="pOnline" style="display:none">
+    <h2>Online hra</h2>
+    <label>Adresa serveru <input id="oSrv" type="text" placeholder="wss://moje-adresa.example.com" autocomplete="off" spellcheck="false"></label>
+    <label>Tvoje jméno <input id="oName" type="text" maxlength="16" placeholder="2–16 znaků" autocomplete="off"></label>
+    <label>Admin heslo (nepovinné) <input id="oAdm" type="password" autocomplete="off"></label>
+    <label>Heslo serveru (pokud je) <input id="oPass" type="password" autocomplete="off"></label>
+    <p id="oStat" class="note"></p>
+    <div class="row"><button class="b" id="oGo">Připojit</button><button class="b" id="oBack">Zpět</button></div>
+  </div>
+  <div class="panel" id="pNew" style="display:none">
+    <h2>Nový svět</h2>
+    <label>Název světa <input id="wName" type="text" maxlength="28" placeholder="např. Perlová zátoka"></label>
+    <label>Seed světa <input id="seed" type="text" placeholder="náhodný"></label>
+    <div class="seg"><button class="b on" id="mSurv" type="button">Přežití</button><button class="b" id="mCre" type="button">Kreativní</button></div>
+    <p id="modeDesc"></p>
+    <div class="row"><button class="b" id="bCreate">Vytvořit a hrát</button><button class="b" id="bOnline2">🌐 Online hra</button><button class="b" id="bBack">Zpět</button></div>
+  </div>
+</div>
+
+<div id="pause" class="screen"><h2>Pozastaveno</h2><p id="pWorld"></p><button class="b" id="bResume">Pokračovat</button><br><button class="b musicBtn" type="button">♪ Hudba</button><br><button class="b" id="bMenu">Hlavní nabídka</button></div>
+<div id="death" class="screen"><h2>Zemřel jsi!</h2><button class="b" id="bRespawn">Oživit se</button></div>
+
+<div id="inv" class="screen">
+  <button class="b sm" id="invClose" type="button">✕ Zavřít</button>
+  <div class="win">
+    <div>
+      <h3 id="invTitle">Inventář</h3>
+      <div class="grid" id="invGrid"></div>
+      <h3 style="margin-top:10px">Lišta</h3>
+      <div class="grid" id="invHot"></div>
+      <h3 style="margin-top:10px">Brnění<span id="armorPts"></span></h3>
+      <div class="grid" id="invArmor" style="grid-template-columns:repeat(4,52px)"></div>
+    </div>
+    <div id="rightPane"></div>
+  </div>
+</div>
+
+<div id="trade" class="screen">
+  <div class="win" style="flex-direction:column;min-width:380px">
+    <h3 id="tradeTitle" style="font-size:18px">Obchod</h3>
+    <div id="offers"></div>
+    <button class="b sm" id="tradeClose">Zavřít (Esc)</button>
+  </div>
+</div>
+
+<div id="touch">
+  <div id="tzL"></div><div id="tzR"></div>
+  <div id="stick"><div id="knob"></div></div>
+  <div class="tb" id="tPause">☰</div><div class="tb" id="tInv">🎒</div><div class="tb" id="tFly" style="display:none">🕊</div><div class="tb" id="tChat">💬</div>
+  <div class="tb" id="tJump">⤒</div><div class="tb" id="tUse">✋</div><div class="tb" id="tMine">⛏</div><div class="tb" id="tSneak">⤓</div>
+</div>
+<div id="held"></div>
+<div id="chatLog"></div><input id="chatIn" maxlength="200" autocomplete="off" placeholder="Zpráva nebo /příkaz…"><div id="plist"></div><div id="netBadge"></div>
+<div id="loading"><div id="loadTxt">Generuji svět…</div><div class="bar"><i></i></div></div>
+
+<script src="js/three.min.js"></script>
+<script src="js/world.js"></script>
+<script src="js/tex.js"></script>
+<script src="js/render.js"></script>
+<script src="js/ents.js"></script>
+<script src="js/furniture.js"></script>
+<script src="js/fluid.js"></script>
+<script src="js/redstone.js"></script>
+<script src="js/music.js"></script>
+<script src="js/game.js"></script>
+<script src="js/config.js"></script>
+<script src="js/net.js"></script>
+</body>
+</html>
